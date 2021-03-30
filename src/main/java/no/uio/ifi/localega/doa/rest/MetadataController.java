@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.Set;
+import java.util.Base64;
+import java.util.regex.Pattern;
 
 /**
  * REST controller incorporating metadata-related endpoints.
@@ -53,12 +55,27 @@ public class MetadataController {
     @GetMapping("/datasets/{datasetId}/files")
     public ResponseEntity<?> files(@PathVariable(value = "datasetId") String datasetId) {
         Set<String> datasetIds = (Set<String>) request.getAttribute(AAIAspect.DATASETS);
-        if (!datasetIds.contains(datasetId)) {
-            log.info("User doesn't have permissions to list files in the requested dataset: {}", datasetId);
+        Pattern BASE64_PATTERN = Pattern.compile("^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)?$");
+        String datasetIdParsed = "";
+        // test if the string is valid base64 before attempting to decode it
+        if (BASE64_PATTERN.matcher(datasetId).matches()) {
+            try {
+                // attempt to base64 decode the path param
+                datasetIdParsed = new String(Base64.getDecoder().decode(datasetId.getBytes()));
+            } catch (Exception e) {
+                // decoding failed, fall back to original string
+                datasetIdParsed = datasetId;
+            }
+        } else {
+            // use the original string
+            datasetIdParsed = datasetId;
+        }
+        if (!datasetIds.contains(datasetIdParsed)) {
+            log.info("User doesn't have permissions to list files in the requested dataset: {}", datasetIdParsed);
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        log.info("User has permissions to list files in the requested dataset: {}", datasetId);
-        return ResponseEntity.ok(metadataService.files(datasetId));
+        log.info("User has permissions to list files in the requested dataset: {}", datasetIdParsed);
+        return ResponseEntity.ok(metadataService.files(datasetIdParsed));
     }
 
 }
